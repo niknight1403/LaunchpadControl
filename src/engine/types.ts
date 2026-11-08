@@ -113,6 +113,11 @@ export interface NativeAudioCore {
   setDeckRate(deck: number, rate: number): void;
   seek(deck: number, frame: number): void;
 
+  startRecording(path: string): boolean;
+  stopRecording(): void;
+  recordedFrames(): number;
+  recordedDrops(): number;
+
   /** Drains the lock-free event ring. Returns one flat number[] per event. */
   pollEvents(): number[][];
 

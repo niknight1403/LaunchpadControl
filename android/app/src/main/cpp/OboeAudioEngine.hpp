@@ -17,6 +17,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "AudioCommand.hpp"
@@ -67,6 +68,21 @@ class OboeAudioEngine : public oboe::AudioStreamDataCallback, public oboe::Audio
   void setDeckRate(int32_t deck, float rate);
   /** Jumps the playing voices to a source frame. */
   void seek(int32_t deck, int64_t frame);
+
+  // ── recording ────────────────────────────────────────────────────────────
+  /**
+   * Starts a 16-bit stereo WAV capture.
+   *
+   * The audio callback never touches the file system: it pushes frames into a
+   * SPSC ring and a writer thread drains it. That thread only runs when a
+   * recording exists, so a rehearsal costs nothing.
+   */
+  bool startRecording(const std::string& path);
+  void stopRecording();
+  bool isRecording() const { return recording_.load(std::memory_order_acquire); }
+  int64_t recordedFrames() const { return recordFrames_.load(std::memory_order_relaxed); }
+  int32_t recordedDrops() const { return recordDrops_.load(std::memory_order_relaxed); }
+  std::string recordingPath() const { return recordPath_; }
 
   // ── telemetry ────────────────────────────────────────────────────────────
   double latencyMs() const;
@@ -138,6 +154,7 @@ class OboeAudioEngine : public oboe::AudioStreamDataCallback, public oboe::Audio
   void renderDeck(Deck& deck, float* outLeft, float* outRight, int32_t frames);
   void resetDeckBuffers(Deck& deck, double sampleRate, float maxDelaySeconds);
   void pushEvent(EventType type, int32_t deck, int32_t pad);
+  void recordingThreadLoop();
   int32_t bankSlot(int32_t deck, int32_t pad) const { return deck * kPadsPerDeck + (pad % kPadsPerDeck); }
 
   static constexpr int32_t kPadsPerDeck = 8;
@@ -165,6 +182,14 @@ class OboeAudioEngine : public oboe::AudioStreamDataCallback, public oboe::Audio
   std::atomic<float> crossfader_{0.5f};
   std::atomic<double> transportBpm_{124.0};
   std::atomic<double> transportBeats_{0.0};
+
+  LockFreeRingBuffer<StereoFrame> recordRing_{1 << 16};
+  std::atomic<bool> recording_{false};
+  std::atomic<bool> writerStop_{false};
+  std::atomic<int64_t> recordFrames_{0};
+  std::atomic<int32_t> recordDrops_{0};
+  std::thread writerThread_;
+  std::string recordPath_;
 
   int32_t sampleRate_ = 48000;
   int32_t framesPerBuffer_ = 128;

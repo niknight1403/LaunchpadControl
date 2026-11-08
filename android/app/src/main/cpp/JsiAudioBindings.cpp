@@ -181,6 +181,34 @@ class AuraCoreHostObject : public HostObject {
             return result;
           });
     }
+    if (key == "startRecording") {
+      return Function::createFromHostFunction(
+          rt, name, 1,
+          [](Runtime& rt2, const Value&, const Value* args, std::size_t) -> Value {
+            if (!args[0].isString()) return Value(false);
+            const std::string path = args[0].getString(rt2).utf8(rt2);
+            return Value(engine()->startRecording(path));
+          });
+    }
+    if (key == "stopRecording") {
+      return Function::createFromHostFunction(
+          rt, name, 0, [](Runtime&, const Value&, const Value*, std::size_t) -> Value {
+            engine()->stopRecording();
+            return Value::undefined();
+          });
+    }
+    if (key == "recordedFrames") {
+      return Function::createFromHostFunction(
+          rt, name, 0, [](Runtime&, const Value&, const Value*, std::size_t) -> Value {
+            return Value(static_cast<double>(engine()->recordedFrames()));
+          });
+    }
+    if (key == "recordedDrops") {
+      return Function::createFromHostFunction(
+          rt, name, 0, [](Runtime&, const Value&, const Value*, std::size_t) -> Value {
+            return Value(engine()->recordedDrops());
+          });
+    }
     if (key == "latencyMs") {
       return Function::createFromHostFunction(
           rt, name, 0, [](Runtime&, const Value&, const Value*, std::size_t) -> Value {
@@ -226,7 +254,8 @@ class AuraCoreHostObject : public HostObject {
     for (const char* key :
          {"start", "stop", "loadClip", "unloadClip", "triggerPad", "stopDeck", "setDeckGain",
           "setStemGain", "setFx", "setMasterGain", "setTransport", "setCrossfader", "setLoop",
-          "clearLoop", "setDeckRate", "seek", "pollEvents",
+          "clearLoop", "setDeckRate", "seek", "startRecording", "stopRecording",
+          "recordedFrames", "recordedDrops", "pollEvents",
           "latencyMs", "cpuLoad", "xruns", "activeVoices", "masterPeak", "transportBeats"}) {
       names.push_back(facebook::jsi::PropNameID::forAscii(rt, key));
     }

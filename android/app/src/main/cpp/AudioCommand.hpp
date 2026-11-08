@@ -60,6 +60,15 @@ struct AudioCommand {
   int64_t frameB = 0;
 };
 
+/**
+ * One interleaved stereo frame for the recording ring.
+ * Trivially copyable so the SPSC ring can carry it without allocating.
+ */
+struct StereoFrame {
+  float left = 0.f;
+  float right = 0.f;
+};
+
 struct EngineEvent {
   EventType type = EventType::kVoiceEnded;
   int32_t deck = 0;

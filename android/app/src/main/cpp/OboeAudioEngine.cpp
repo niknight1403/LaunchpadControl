@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <fstream>
 
 #include "WavReader.hpp"
 
@@ -16,6 +18,42 @@
 namespace auragrid {
 
 namespace {
+
+// WAV header helpers. 44 bytes, PCM16 stereo; sizes are patched on stop.
+void writeU32(std::ofstream& file, uint32_t value) {
+  const unsigned char bytes[4] = {
+      static_cast<unsigned char>(value & 0xff), static_cast<unsigned char>((value >> 8) & 0xff),
+      static_cast<unsigned char>((value >> 16) & 0xff), static_cast<unsigned char>((value >> 24) & 0xff)};
+  file.write(reinterpret_cast<const char*>(bytes), 4);
+}
+
+void writeU16(std::ofstream& file, uint16_t value) {
+  const unsigned char bytes[2] = {static_cast<unsigned char>(value & 0xff),
+                                  static_cast<unsigned char>((value >> 8) & 0xff)};
+  file.write(reinterpret_cast<const char*>(bytes), 2);
+}
+
+void writeWavHeader(std::ofstream& file, int32_t sampleRate, int32_t channels) {
+  file.write("RIFF", 4);
+  writeU32(file, 0);  // patched on stop
+  file.write("WAVE", 4);
+  file.write("fmt ", 4);
+  writeU32(file, 16);
+  writeU16(file, 1);  // PCM
+  writeU16(file, static_cast<uint16_t>(channels));
+  writeU32(file, static_cast<uint32_t>(sampleRate));
+  writeU32(file, static_cast<uint32_t>(sampleRate * channels * 2));
+  writeU16(file, static_cast<uint16_t>(channels * 2));
+  writeU16(file, 16);
+  file.write("data", 4);
+  writeU32(file, 0);  // patched on stop
+}
+
+inline int16_t toPcm16(float value) {
+  const float clamped = value > 1.f ? 1.f : (value < -1.f ? -1.f : value);
+  return static_cast<int16_t>(clamped * 32767.f);
+}
+
 constexpr std::size_t kCaptureFrames = 1u << 14;  // 16384 frames ≈ 341 ms @ 48k
 constexpr int32_t kMaxCommandsPerBlock = 64;
 constexpr double kDeclickMs = 3.0;
@@ -32,7 +70,10 @@ OboeAudioEngine::OboeAudioEngine() {
   clipBank_.fill(nullptr);
 }
 
-OboeAudioEngine::~OboeAudioEngine() { stop(); }
+OboeAudioEngine::~OboeAudioEngine() {
+  stopRecording();
+  stop();
+}
 
 // ── lifecycle ──────────────────────────────────────────────────────────────
 
@@ -276,6 +317,84 @@ void OboeAudioEngine::pushEvent(EventType type, int32_t deck, int32_t pad) {
   event.deck = deck;
   event.pad = pad;
   events_.push(event);
+}
+
+// ── recording ──────────────────────────────────────────────────────────────
+
+bool OboeAudioEngine::startRecording(const std::string& path) {
+  if (recording_.load(std::memory_order_acquire)) return false;
+  std::ofstream probe(path, std::ios::binary | std::ios::trunc);
+  if (!probe.is_open()) {
+    AURA_ERR("cannot open recording target %s", path.c_str());
+    return false;
+  }
+  writeWavHeader(probe, sampleRate_, 2);
+  probe.close();
+
+  recordPath_ = path;
+  recordFrames_.store(0, std::memory_order_relaxed);
+  recordDrops_.store(0, std::memory_order_relaxed);
+  writerStop_.store(false, std::memory_order_release);
+  recording_.store(true, std::memory_order_release);
+  writerThread_ = std::thread(&OboeAudioEngine::recordingThreadLoop, this);
+  AURA_LOG("recording to %s", path.c_str());
+  return true;
+}
+
+void OboeAudioEngine::stopRecording() {
+  if (!recording_.load(std::memory_order_acquire) && !writerThread_.joinable()) return;
+  recording_.store(false, std::memory_order_release);
+  writerStop_.store(true, std::memory_order_release);
+  if (writerThread_.joinable()) writerThread_.join();
+  AURA_LOG("recording stopped, %lld frames, %d drops", static_cast<long long>(recordedFrames()),
+           recordedDrops());
+}
+
+void OboeAudioEngine::recordingThreadLoop() {
+  std::ofstream file(recordPath_, std::ios::binary | std::ios::in | std::ios::out);
+  if (!file.is_open()) {
+    recording_.store(false, std::memory_order_release);
+    return;
+  }
+  file.seekp(44, std::ios::beg);  // after the header
+
+  std::vector<int16_t> scratch;
+  scratch.reserve(4096);
+  StereoFrame frame;
+
+  const auto flushScratch = [&]() {
+    if (scratch.empty()) return;
+    file.write(reinterpret_cast<const char*>(scratch.data()),
+               static_cast<std::streamsize>(scratch.size() * sizeof(int16_t)));
+    scratch.clear();
+  };
+
+  while (!writerStop_.load(std::memory_order_acquire) ||
+         !recordRing_.empty()) {
+    bool wroteAnything = false;
+    while (scratch.size() < 4096 && recordRing_.pop(frame)) {
+      scratch.push_back(toPcm16(frame.left));
+      scratch.push_back(toPcm16(frame.right));
+      recordFrames_.fetch_add(1, std::memory_order_relaxed);
+      wroteAnything = true;
+    }
+    if (!scratch.empty()) flushScratch();
+    if (!wroteAnything) {
+      // 4 ms poll: short enough to keep the ring shallow, long enough not to
+      // burn a core while a set plays.
+      std::this_thread::sleep_for(std::chrono::milliseconds(4));
+    }
+  }
+  flushScratch();
+
+  const int64_t frames = recordFrames_.load(std::memory_order_relaxed);
+  const uint32_t dataBytes = static_cast<uint32_t>(frames * 2 * 2);
+  file.seekp(4, std::ios::beg);
+  writeU32(file, 36 + dataBytes);
+  file.seekp(40, std::ios::beg);
+  writeU32(file, dataBytes);
+  file.flush();
+  file.close();
 }
 
 // ── command application (audio thread) ─────────────────────────────────────
@@ -607,7 +726,19 @@ oboe::DataCallbackResult OboeAudioEngine::onAudioReady(oboe::AudioStream* stream
     if (magnitude > peak) peak = magnitude;
   }
 
-  // 5. transport + telemetry
+  // 5. recording tap: push to the ring, never to the file system
+  if (recording_.load(std::memory_order_acquire)) {
+    for (int32_t i = 0; i < numFrames; ++i) {
+      StereoFrame frame;
+      frame.left = output[i * 2];
+      frame.right = output[i * 2 + 1];
+      if (!recordRing_.push(frame)) {
+        recordDrops_.fetch_add(1, std::memory_order_relaxed);
+      }
+    }
+  }
+
+  // 6. transport + telemetry
   const double bpm = transportBpm_.load(std::memory_order_relaxed);
   const double beatsPerFrame = bpm / 60.0 / static_cast<double>(sampleRate_);
   transportBeats_.store(transportBeats_.load(std::memory_order_relaxed) + beatsPerFrame * numFrames,

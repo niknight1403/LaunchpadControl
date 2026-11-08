@@ -42,6 +42,9 @@ class SilentCore implements NativeAudioCore {
   private loops = new Map<number, { startFrame: number; endFrame: number }>();
   private rates = new Map<number, number>();
   private seeks = new Map<number, number>();
+  private recordingPath: string | null = null;
+  private recordStartMs: number | null = null;
+  private recorded = 0;
 
   constructor(private config: EngineConfig) {}
 
@@ -121,6 +124,36 @@ class SilentCore implements NativeAudioCore {
   /** Exposed for tests. */
   getSeek(deck: number): number | undefined {
     return this.seeks.get(deck);
+  }
+
+  startRecording(path: string): boolean {
+    this.recordingPath = path;
+    this.recordStartMs = Date.now();
+    this.recorded = 0;
+    return true;
+  }
+
+  stopRecording(): void {
+    this.recorded = this.recordedFrames();
+    this.recordingPath = null;
+    this.recordStartMs = null;
+  }
+
+  recordedFrames(): number {
+    // The silent bridge still accounts time, so a rehearsal produces a take of
+    // the right length (with no audio) instead of a zero-length file.
+    if (!this.recordingPath) return this.recorded;
+    const elapsed = (Date.now() - (this.recordStartMs ?? Date.now())) / 1000;
+    return Math.round(elapsed * this.config.sampleRate);
+  }
+
+  recordedDrops(): number {
+    return 0;
+  }
+
+  /** Exposed for tests. */
+  get recording(): string | null {
+    return this.recordingPath;
   }
 
   /** Exposed for tests: what the silent bridge was told. */

@@ -252,6 +252,25 @@ export class AudioEngine {
     this.handle.core.setDeckRate(deck, clamped);
   }
 
+  // ── recording ────────────────────────────────────────────────────────────
+
+  /** Starts a live capture. Returns false when the core could not open the file. */
+  startRecording(path: string): boolean {
+    return this.handle.core.startRecording(path);
+  }
+
+  stopRecording(): void {
+    this.handle.core.stopRecording();
+  }
+
+  get recordedFrames(): number {
+    return this.handle.core.recordedFrames();
+  }
+
+  get recordedDrops(): number {
+    return this.handle.core.recordedDrops();
+  }
+
   // ── transport ────────────────────────────────────────────────────────────
 
   setBpm(bpm: number): void {

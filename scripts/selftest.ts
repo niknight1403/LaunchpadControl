@@ -11,6 +11,7 @@ import { run as library } from './tests/library.test';
 import { run as analysis } from './tests/analysis.test';
 import { run as deck } from './tests/deck.test';
 import { run as fx } from './tests/fx.test';
+import { run as recording } from './tests/recording.test';
 import { run as harmonic } from './tests/harmonic.test';
 import { run as midi } from './tests/midi.test';
 import { run as timeline } from './tests/timeline.test';
@@ -25,6 +26,7 @@ async function main(): Promise<void> {
   await analysis();
   await deck();
   await fx();
+  await recording();
   await harmonic();
   await midi();
   await timeline();
