@@ -22,6 +22,7 @@ import { run as stemSplit } from './tests/stem-split.test';
 import { run as waveformData } from './tests/waveform-data.test';
 import { run as postProcess } from './tests/post-process.test';
 import { run as udpTransport } from './tests/udp-transport.test';
+import { run as latencyGovernor } from './tests/latency-governor.test';
 import { run as harmonic } from './tests/harmonic.test';
 import { run as midi } from './tests/midi.test';
 import { run as timeline } from './tests/timeline.test';
@@ -47,6 +48,7 @@ async function main(): Promise<void> {
   await waveformData();
   await postProcess();
   await udpTransport();
+  await latencyGovernor();
   await harmonic();
   await midi();
   await timeline();
