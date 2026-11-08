@@ -32,6 +32,7 @@ import { run as wiringMidiLearn } from './tests/wiring-midi-learn.test';
 import { run as wiringBeatGrid } from './tests/wiring-beat-grid.test';
 import { run as wiringStemsWaveformExport } from './tests/wiring-stems-waveform-export.test';
 import { run as wiringMeshLatency } from './tests/wiring-mesh-latency.test';
+import { run as wiringBackupI18n } from './tests/wiring-backup-i18n.test';
 import { run as harmonic } from './tests/harmonic.test';
 import { run as midi } from './tests/midi.test';
 import { run as timeline } from './tests/timeline.test';
@@ -67,6 +68,7 @@ async function main(): Promise<void> {
   await wiringBeatGrid();
   await wiringStemsWaveformExport();
   await wiringMeshLatency();
+  await wiringBackupI18n();
   await harmonic();
   await midi();
   await timeline();
