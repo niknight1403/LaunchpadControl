@@ -23,6 +23,7 @@ import { run as waveformData } from './tests/waveform-data.test';
 import { run as postProcess } from './tests/post-process.test';
 import { run as udpTransport } from './tests/udp-transport.test';
 import { run as latencyGovernor } from './tests/latency-governor.test';
+import { run as backupBundle } from './tests/backup-bundle.test';
 import { run as harmonic } from './tests/harmonic.test';
 import { run as midi } from './tests/midi.test';
 import { run as timeline } from './tests/timeline.test';
@@ -49,6 +50,7 @@ async function main(): Promise<void> {
   await postProcess();
   await udpTransport();
   await latencyGovernor();
+  await backupBundle();
   await harmonic();
   await midi();
   await timeline();
