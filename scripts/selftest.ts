@@ -27,6 +27,7 @@ import { run as backupBundle } from './tests/backup-bundle.test';
 import { run as i18n } from './tests/i18n.test';
 import { run as contrast } from './tests/contrast.test';
 import { run as meshSyncEngine } from './tests/mesh-sync-engine.test';
+import { run as wiringSession } from './tests/wiring-session.test';
 import { run as harmonic } from './tests/harmonic.test';
 import { run as midi } from './tests/midi.test';
 import { run as timeline } from './tests/timeline.test';
@@ -57,6 +58,7 @@ async function main(): Promise<void> {
   await i18n();
   await contrast();
   await meshSyncEngine();
+  await wiringSession();
   await harmonic();
   await midi();
   await timeline();
