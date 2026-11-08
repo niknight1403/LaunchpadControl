@@ -1,0 +1,21 @@
+node_modules/
+.expo/
+.tmp/
+dist/
+web-build/
+*.log
+.DS_Store
+
+# native build output (prebuild regenerates android/, native sources are tracked)
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/.cxx/
+*.apk
+*.aab
+*.keystore
+
+# local env
+.env
+.env.local

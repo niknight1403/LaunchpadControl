@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  REFERENCE, not an active manifest.
+
+  `expo prebuild` generates android/app/src/main/AndroidManifest.xml. Merge the
+  entries below into that generated file (or move them into a config plugin if
+  you would rather keep android/ disposable). They are the minimum for a working
+  live set: foreground audio service, audio focus, USB host, wake lock, and the
+  battery-optimization exemption request.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <uses-feature android:name="android.hardware.usb.host" android:required="true" />
+    <uses-feature android:name="android.hardware.audio.low_latency" android:required="true" />
+    <uses-feature android:name="android.hardware.audio.pro" android:required="false" />
+
+    <application>
+        <service
+            android:name=".AudioForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+    </application>
+
+</manifest>

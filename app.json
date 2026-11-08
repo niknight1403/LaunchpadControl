@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "LaunchpadControl",
+    "slug": "launchpadcontrol",
+    "version": "0.1.0",
+    "orientation": "default",
+    "scheme": "auragrid",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0B0F19",
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.auragrid.launchpad",
+      "permissions": [
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.WAKE_LOCK",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+      ],
+      "features": [
+        "android.hardware.usb.host"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 29,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "ndkVersion": "27.1.12297006",
+            "newArchEnabled": true,
+            "packagingOptions": {
+              "jniLibs": {
+                "useLegacyPackaging": false
+              }
+            }
+          }
+        }
+      ]
+    ]
+  }
+}
