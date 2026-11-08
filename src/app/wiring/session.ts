@@ -1,5 +1,6 @@
 import { SessionStore, type SessionSnapshot, type SessionStorage } from '../../state/SessionStore';
 import { asDeck, type StudioContext, type StudioPlugin } from '../Studio';
+import { FxParam } from '../../engine/types';
 
 /**
  * Sprint 11 wiring: crash-safe session restore.
@@ -48,7 +49,10 @@ export function sessionPlugin(): StudioPlugin & { wiring: SessionWiring | null }
       }
 
       const wiring: SessionWiring = {
-        flush: () => store.saveNow(),
+        flush: () => {
+          capture(ctx, store);
+          return store.saveNow();
+        },
         capture: () => capture(ctx, store),
         store: () => store,
       };
@@ -105,7 +109,7 @@ function applySnapshot(ctx: StudioContext, snapshot: SessionSnapshot): void {
     const id = asDeck(index);
     ctx.engine.setDeckGain(id, deck.gain);
     ctx.engine.setDeckRate(id, deck.rate);
-    ctx.engine.setFx(id, 'filter', deck.filter);
+    ctx.engine.setFx(id, FxParam.FilterCutoff, deck.filter);
     if (deck.loop) {
       const startFrame = Math.round(deck.loop.startSeconds * rate);
       const endFrame = Math.round(deck.loop.endSeconds * rate);

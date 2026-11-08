@@ -1,5 +1,6 @@
 import { MidiMap, type Mapping, type MappingTarget } from '../../midi/MidiMap';
 import { asDeck, type StudioContext, type StudioPlugin } from '../Studio';
+import { FxParam } from '../../engine/types';
 
 /**
  * Sprint 12 wiring: MIDI learn reaches the engine.
@@ -25,10 +26,6 @@ export function midiLearnPlugin(): StudioPlugin & { wiring: MidiLearnWiring | nu
     wiring: null,
     install(ctx: StudioContext) {
       const midi = ctx.midi;
-      if (!midi) {
-        ctx.log('midi', 'no controller attached, learn disabled');
-        return;
-      }
 
       let map = new MidiMap({ now: ctx.now });
       const stored = ctx.storage.getItem(STORAGE_KEY);
@@ -44,7 +41,7 @@ export function midiLearnPlugin(): StudioPlugin & { wiring: MidiLearnWiring | nu
 
       const persist = () => ctx.storage.setItem(STORAGE_KEY, JSON.stringify(map.toJSON()));
 
-      const unsubscribe = midi.subscribe((message) => {
+      const unsubscribe = midi ? midi.subscribe((message) => {
         const result = map.handle({
           type: message.type,
           channel: message.channel,
@@ -60,7 +57,13 @@ export function midiLearnPlugin(): StudioPlugin & { wiring: MidiLearnWiring | nu
         }
         if (result.kind !== 'value') return;
         apply(ctx, result.mapping.target, result.value);
-      });
+      }) : () => {};
+      if (!midi) {
+        // The learn buttons must still exist on a phone with no hardware in reach;
+        // starting a learn that can never receive a message would be the lie.
+        ctx.log('midi', 'no controller attached, learn waits for hardware');
+      }
+
 
       const wiring: MidiLearnWiring = {
         beginLearn: (target) => {
@@ -111,7 +114,14 @@ function safeParse(text: string): unknown {
 /** One binding, applied to the engine or forwarded to the command another sprint owns. */
 function apply(ctx: StudioContext, target: MappingTarget, value: number): void {
   if (target.kind === 'fx') {
-    ctx.engine.setFx(asDeck(target.deck), target.param, value);
+    const param = resolveFxParam(target.param);
+    if (param === null) {
+      // A mapping can name anything; an unknown name must not be silently dropped onto
+      // whichever enum value happens to be first.
+      ctx.log('midi', `unknown fx parameter "${target.param}"`);
+      return;
+    }
+    ctx.engine.setFx(asDeck(target.deck), param, value);
     const deckState = ctx.state.decks[target.deck];
     if (deckState) deckState.filter = value;
     ctx.notify();
@@ -149,6 +159,26 @@ function apply(ctx: StudioContext, target: MappingTarget, value: number): void {
     }
   }
   ctx.notify();
+}
+
+/** Mapping targets carry a readable name; the engine wants the enum. */
+export function resolveFxParam(name: string): FxParam | null {
+  const normalized = name.trim().toLowerCase();
+  const table: Record<string, FxParam> = {
+    filter: FxParam.FilterCutoff,
+    cutoff: FxParam.FilterCutoff,
+    filtercutoff: FxParam.FilterCutoff,
+    resonance: FxParam.FilterResonance,
+    filterresonance: FxParam.FilterResonance,
+    filtermode: FxParam.FilterMode,
+    stutterrate: FxParam.StutterRate,
+    stuttermix: FxParam.StutterMix,
+    delaymix: FxParam.DelayMix,
+    delayfeedback: FxParam.DelayFeedback,
+    delaydrift: FxParam.DelayDrift,
+    drive: FxParam.Drive,
+  };
+  return table[normalized] ?? table[normalized.replace(/[^a-z]/g, '')] ?? null;
 }
 
 function describe(target: MappingTarget): string {

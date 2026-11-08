@@ -21,12 +21,18 @@ import { PadGrid } from './PadGrid';
 import { WaveformView, syntheticPeaks } from './WaveformView';
 import { XYPad } from './XYPad';
 import { usePadHaptics } from './usePadHaptics';
+import type { Studio } from '../app/Studio';
 
 export interface AuraGridInterfaceProps {
   engine: AudioEngine;
   midi: LaunchpadMidiManager;
   agent: AuraGridAgent;
   layout: 'studio' | 'quick-deck';
+  /**
+   * The sprint wiring. Optional so the screen still renders without it (and in tests),
+   * but when present a pad press goes through the beat grid instead of firing blind.
+   */
+  studio?: Studio | null;
 }
 
 function emptyGrid(): AuraPadState[][] {
@@ -35,7 +41,7 @@ function emptyGrid(): AuraPadState[][] {
 
 const DECK_LABELS = ['DECK A', 'DECK B', 'DECK C', 'DECK D'] as const;
 
-export function AuraGridInterface({ engine, midi, agent, layout }: AuraGridInterfaceProps) {
+export function AuraGridInterface({ engine, midi, agent, layout, studio }: AuraGridInterfaceProps) {
   const haptics = usePadHaptics();
   const [telemetry, setTelemetry] = useState<EngineTelemetry>(engine.getTelemetry());
   const [status, setStatus] = useState<AgentStatus>(() => agent.getStatus());
@@ -105,14 +111,21 @@ export function AuraGridInterface({ engine, midi, agent, layout }: AuraGridInter
     (x: number, y: number) => {
       const deck = activeDeckRef.current;
       const velocity = 0.92;
-      engine.triggerPad(deck, y * GRID_SIZE + x, velocity);
+      // With the grid wired, the press lands on the next division; without it the pad
+      // fires immediately, which is what a phone without analysis needs.
+      const quantized = studio?.commands.get('triggerQuantized');
+      if (quantized) {
+        (quantized as (deckId: number, pad: number, division?: number, velocity?: number) => unknown)(deck, y * GRID_SIZE + x, 1, velocity);
+      } else {
+        engine.triggerPad(deck, y * GRID_SIZE + x, velocity);
+      }
       void haptics.fire(velocity);
       setGrid((previous) => patchCell(previous, x, y, 'playing'));
       midi.setPad(x, y, { ...aura.pad.playing, ...scale(velocityBrightness(velocity)) });
       midi.flush();
       setTimeout(() => setGrid((previous) => patchCell(previous, x, y, 'loaded')), 240);
     },
-    [engine, haptics, midi],
+    [engine, haptics, midi, studio],
   );
 
   const handlePadRelease = useCallback((x: number, y: number) => {

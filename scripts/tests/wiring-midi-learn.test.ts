@@ -45,12 +45,12 @@ export async function run(): Promise<void> {
   check('a binding is learned', bindings.length === 1, JSON.stringify(bindings));
   check('the learned message number is kept', bindings[0]?.message.number === 21);
   check('learning is persisted immediately', (storage.getItem('auragrid.midimap') ?? '').includes('"number":21'), storage.getItem('auragrid.midimap') ?? '');
-  check('the learning message does not also act', !engine.calls.some((call) => call.startsWith('fx:0:filter:1')), engine.calls.join(','));
+  check('the learning message does not also act', !engine.calls.some((call) => call.startsWith('fx:0:0:1')), engine.calls.join(','));
 
   // Using the binding now moves the parameter, with hardware range normalisation.
   midi.emit({ type: 'cc', channel: 0, number: 21, value: 64 });
   // The map rounds resolved values to milliseconds of fader resolution: 64/127 ≈ 0.504.
-  check('a mapped CC drives the engine', engine.calls.some((call) => call.startsWith('fx:0:filter:0.50')), engine.calls.join(','));
+  check('a mapped CC drives the engine', engine.calls.some((call) => call.startsWith('fx:0:0:0.50')), engine.calls.join(','));
   check('the deck state mirrors the filter', Math.abs((studio.ctx.state.decks[0]?.filter ?? 0) - 64 / 127) < 0.001, String(studio.ctx.state.decks[0]?.filter));
 
   // A second binding on another deck, to prove deck routing.

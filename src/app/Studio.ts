@@ -1,5 +1,5 @@
 import type { DeckControlTarget } from '../engine/DeckController';
-import type { DeckId } from '../engine/types';
+import type { DeckId, FxParam } from '../engine/types';
 import type { Translator } from '../i18n/strings';
 import type { BeatGrid } from '../analysis/BeatGrid';
 import type { WaveformData } from '../analysis/WaveformData';
@@ -35,7 +35,7 @@ export interface StudioEngine extends DeckControlTarget {
   readonly recordedFrames: number;
   setDeckGain(deck: DeckIndex, gain: number): void;
   setStemGain(deck: DeckIndex, stem: string, gain: number): void;
-  setFx(deck: DeckIndex, param: string, value: number): void;
+  setFx(deck: DeckIndex, param: FxParam, value: number): void;
   setFilterMode(deck: DeckIndex, mode: 'lowpass' | 'highpass'): void;
   setMasterGain(gain: number): void;
   setCrossfader(value: number): void;
