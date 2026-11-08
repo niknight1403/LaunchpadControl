@@ -17,6 +17,7 @@ import { run as setbuilder } from './tests/setbuilder.test';
 import { run as diagnostics } from './tests/diagnostics.test';
 import { run as sessionStore } from './tests/session-store.test';
 import { run as midiMap } from './tests/midi-map.test';
+import { run as beatGrid } from './tests/beat-grid.test';
 import { run as harmonic } from './tests/harmonic.test';
 import { run as midi } from './tests/midi.test';
 import { run as timeline } from './tests/timeline.test';
@@ -37,6 +38,7 @@ async function main(): Promise<void> {
   await diagnostics();
   await sessionStore();
   await midiMap();
+  await beatGrid();
   await harmonic();
   await midi();
   await timeline();
