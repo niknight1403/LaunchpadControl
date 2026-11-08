@@ -7,6 +7,7 @@
  */
 import { check, section, totals } from './tests/harness';
 import { run as presets } from './tests/presets.test';
+import { run as library } from './tests/library.test';
 import { run as harmonic } from './tests/harmonic.test';
 import { run as midi } from './tests/midi.test';
 import { run as timeline } from './tests/timeline.test';
@@ -17,6 +18,7 @@ async function main(): Promise<void> {
   const startedAt = Date.now();
 
   await presets();
+  await library();
   await harmonic();
   await midi();
   await timeline();
