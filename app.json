@@ -2,7 +2,7 @@
   "expo": {
     "name": "LaunchpadControl",
     "slug": "launchpadcontrol",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "default",
     "scheme": "auragrid",
     "userInterfaceStyle": "dark",
@@ -21,7 +21,8 @@
       ],
       "features": [
         "android.hardware.usb.host"
-      ]
+      ],
+      "versionCode": 10000
     },
     "plugins": [
       [

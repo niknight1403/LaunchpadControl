@@ -1,8 +1,8 @@
 {
   "name": "launchpadcontrol",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "LaunchpadControl (AuraGrid) \u2014 low-latency live performance & DJ system for Android",
+  "description": "LaunchpadControl (AuraGrid) — low-latency live performance & DJ system for Android",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -10,7 +10,9 @@
     "prebuild": "expo prebuild --platform android --no-clean",
     "typecheck": "tsc --noEmit",
     "test": "tsc --noEmit",
-    "test:logic": "esbuild scripts/selftest.ts --bundle --platform=node --format=cjs --outfile=.tmp/selftest.cjs && node .tmp/selftest.cjs"
+    "test:logic": "esbuild scripts/selftest.ts --bundle --platform=node --format=cjs --outfile=.tmp/selftest.cjs && node .tmp/selftest.cjs",
+    "check": "tools/ci/check.sh",
+    "ci:types": "tsc -p tools/ci/tsconfig.json"
   },
   "dependencies": {
     "expo": "~54.0.0",
