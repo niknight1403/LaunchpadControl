@@ -66,8 +66,9 @@ export async function run(): Promise<void> {
   check('the binding count stays the same', map.bindings().length === before);
   check('the message now points at the new target', targetKey(map.bindings()[0]!.target) === 'fx:1:delayMix');
 
-  map.beginLearn(target);
-  // Learn the same *target* on a second controller message: the UI should warn.
+  // Learn a *second* message onto a target that is already bound: a serious
+  // controller (and a worn-out one) does this, so it must be visible, not merged.
+  map.beginLearn({ kind: 'fx', deck: 1, param: 'delayMix' });
   map.handle(cc(11, 0.5));
   const conflicting = map.forTarget({ kind: 'fx', deck: 1, param: 'delayMix' });
   check('two bindings can share a target', conflicting.length === 2);
@@ -85,7 +86,7 @@ export async function run(): Promise<void> {
 
   const junk = MidiMap.fromJSON([{ message: { number: 1 } }, 42, null, { message: { number: 5, channel: 0, type: 'cc' }, target: { kind: 'transport', action: 'stop' } }]);
   check('junk entries are skipped', junk.map.bindings().length === 1);
-  check('junk is reported', junk.warnings.length === 2);
+  check('junk is reported', junk.warnings.length === 3, junk.warnings.join('|'));
   const notAnArray = MidiMap.fromJSON({ nope: true });
   check('a non-array file is reported', notAnArray.warnings.length === 1 && notAnArray.map.bindings().length === 0);
 

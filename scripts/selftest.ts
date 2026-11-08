@@ -16,6 +16,7 @@ import { run as meshSwarm } from './tests/mesh-swarm.test';
 import { run as setbuilder } from './tests/setbuilder.test';
 import { run as diagnostics } from './tests/diagnostics.test';
 import { run as sessionStore } from './tests/session-store.test';
+import { run as midiMap } from './tests/midi-map.test';
 import { run as harmonic } from './tests/harmonic.test';
 import { run as midi } from './tests/midi.test';
 import { run as timeline } from './tests/timeline.test';
@@ -35,6 +36,7 @@ async function main(): Promise<void> {
   await setbuilder();
   await diagnostics();
   await sessionStore();
+  await midiMap();
   await harmonic();
   await midi();
   await timeline();
