@@ -132,7 +132,12 @@ export interface StudioState {
   events: StudioEvent[];
 }
 
-export type StudioCommand = (...args: never[]) => unknown;
+/**
+ * Commands are heterogeneous (deck index, mapping target, nothing at all). The single
+ * `any[]` here is the seam between "some plugin provides it" and "the UI calls it" and
+ * is deliberately confined to this alias.
+ */
+export type StudioCommand = (...args: any[]) => unknown;
 
 export interface StudioContext {
   engine: StudioEngine;
@@ -145,6 +150,8 @@ export interface StudioContext {
   log(kind: string, message: string): void;
   /** Publishes a callable to the UI (e.g. `triggerQuantized`). */
   provide(name: string, command: StudioCommand): void;
+  /** Commands published by earlier sprints, for wiring that depends on them. */
+  readonly commands: Map<string, StudioCommand>;
   /** Marks state as changed so the UI re-reads it. */
   notify(): void;
   /** Registers a change listener; returns the unsubscribe. */
@@ -214,6 +221,7 @@ export class Studio {
       provide: (name, command) => {
         this.commands.set(name, command);
       },
+      commands: this.commands,
       notify: () => this.notify(),
       subscribe: (listener) => this.subscribe(listener),
       deck: (index) => {
