@@ -79,3 +79,144 @@ export class LoopbackMeshTransport implements MeshTransport {
     }, replyDelay);
   }
 }
+
+/**
+ * Topic router: lets several subsystems share one transport.
+ *
+ * The clock sync and the swarm both need inbound packets. Without a router the
+ * second `start()` call steals the first one's handler — a bug that only shows up
+ * with two nodes and looks like "the mesh just does not work".
+ */
+export class MeshRouter {
+  private transport: MeshTransport;
+  private subs = new Map<MeshPacket['topic'], Set<(packet: MeshPacket) => void>>();
+  private started = false;
+  private selfId: PeerId = 'local';
+
+  constructor(transport: MeshTransport) {
+    this.transport = transport;
+  }
+
+  async start(selfId: PeerId): Promise<void> {
+    this.selfId = selfId;
+    if (this.started) return;
+    await this.transport.start(selfId, (packet) => this.dispatch(packet));
+    this.started = true;
+  }
+
+  async stop(): Promise<void> {
+    if (!this.started) return;
+    await this.transport.stop();
+    this.started = false;
+    this.subs.clear();
+  }
+
+  subscribe(topic: MeshPacket['topic'], handler: (packet: MeshPacket) => void): () => void {
+    const set = this.subs.get(topic) ?? new Set();
+    set.add(handler);
+    this.subs.set(topic, set);
+    return () => set.delete(handler);
+  }
+
+  send(packet: MeshPacket): void {
+    void this.transport.send(packet);
+  }
+
+  peers(): PeerId[] {
+    return this.transport.peers();
+  }
+
+  get id(): PeerId {
+    return this.selfId;
+  }
+
+  get isStarted(): boolean {
+    return this.started;
+  }
+
+  private dispatch(packet: MeshPacket): void {
+    const handlers = this.subs.get(packet.topic);
+    if (!handlers) return;
+    for (const handler of handlers) handler(packet);
+  }
+}
+
+/**
+ * In-process message bus: connects several transports so a multi-node swarm can
+ * be exercised on one machine.
+ *
+ * This is what the mesh tests run on, and it is genuinely useful on stage during
+ * a soundcheck: two phones, same protocol, no network between them yet.
+ */
+export class MeshBus {
+  private handlers = new Map<PeerId, (packet: MeshPacket) => void>();
+
+  register(id: PeerId, handler: (packet: MeshPacket) => void): void {
+    this.handlers.set(id, handler);
+  }
+
+  unregister(id: PeerId): void {
+    this.handlers.delete(id);
+  }
+
+  ids(): PeerId[] {
+    return [...this.handlers.keys()];
+  }
+
+  /** Delivers to the addressed peer, or to everyone except the sender. */
+  route(packet: MeshPacket): number {
+    let delivered = 0;
+    if (packet.to === '*') {
+      for (const [id, handler] of this.handlers) {
+        if (id === packet.from) continue;
+        handler(packet);
+        delivered += 1;
+      }
+      return delivered;
+    }
+    const handler = this.handlers.get(packet.to);
+    if (handler && packet.to !== packet.from) {
+      handler(packet);
+      delivered = 1;
+    }
+    return delivered;
+  }
+}
+
+/** A transport bound to one id on a `MeshBus`. */
+export class BusTransport implements MeshTransport {
+  private bus: MeshBus;
+  private selfId: PeerId = 'node';
+  private handler: ((packet: MeshPacket) => void) | null = null;
+
+  constructor(bus: MeshBus) {
+    this.bus = bus;
+  }
+
+  async start(selfId: PeerId, onPacket: (packet: MeshPacket) => void): Promise<void> {
+    this.selfId = selfId;
+    this.handler = onPacket;
+    this.bus.register(selfId, onPacket);
+  }
+
+  async stop(): Promise<void> {
+    this.bus.unregister(this.selfId);
+    this.handler = null;
+  }
+
+  peers(): PeerId[] {
+    return this.bus.ids().filter((id) => id !== this.selfId);
+  }
+
+  send(packet: MeshPacket): void {
+    this.bus.route({ ...packet, from: this.selfId });
+  }
+
+  get id(): PeerId {
+    return this.selfId;
+  }
+
+  get hasHandler(): boolean {
+    return this.handler !== null;
+  }
+}

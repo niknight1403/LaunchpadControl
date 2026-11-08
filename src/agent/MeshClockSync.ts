@@ -1,3 +1,4 @@
+import { MeshRouter } from './MeshTransport';
 import type { MeshPacket, MeshTransport, PeerId } from './MeshTransport';
 
 export interface PeerClockState {
@@ -31,6 +32,7 @@ export interface ClockSyncOptions {
  */
 export class MeshClockSync {
   private transport: MeshTransport | null = null;
+  private router: MeshRouter | null = null;
   private selfId: PeerId = 'local';
   private states = new Map<PeerId, PeerClockState>();
   private pending = new Map<number, number>(); // t0 -> send timestamp
@@ -45,17 +47,38 @@ export class MeshClockSync {
     };
   }
 
+  /** Attaches to a dedicated transport (creates its own router). */
   attach(transport: MeshTransport): Promise<void> {
     this.transport = transport;
-    return transport.start(this.selfId, (packet) => this.handlePacket(packet));
+    const router = new MeshRouter(transport);
+    this.router = router;
+    router.subscribe('clock', (packet) => this.handlePacket(packet));
+    return router.start(this.selfId);
+  }
+
+  /** Attaches to a shared router, so the swarm can use the same transport. */
+  attachRouter(router: MeshRouter): void {
+    this.router = router;
+    router.subscribe('clock', (packet) => this.handlePacket(packet));
   }
 
   start(peerIds: PeerId[] = []): void {
     if (this.timer) return;
+    const targets = () => (peerIds.length > 0 ? peerIds : this.discoveredPeers());
     this.timer = setInterval(() => {
-      this.ping(peerIds.length > 0 ? peerIds : this.transport?.peers() ?? []);
+      this.ping(targets());
     }, this.options.pingIntervalMs);
-    this.ping(peerIds.length > 0 ? peerIds : this.transport?.peers() ?? []);
+    this.ping(targets());
+  }
+
+  /**
+   * Peers reported by the transport/router.
+   *
+   * Without this the clock pings nobody when it is attached through a shared
+   * router, nobody measures anybody, and every node believes it is the master.
+   */
+  private discoveredPeers(): PeerId[] {
+    return this.router?.peers() ?? this.transport?.peers() ?? [];
   }
 
   stop(): void {
@@ -69,6 +92,7 @@ export class MeshClockSync {
 
   /** Master = lowest id. Deterministic on every node, no election traffic. */
   masterId(): PeerId {
+    this.pruneStale();
     const ids = [this.selfId, ...this.states.keys()].sort();
     return ids[0] ?? this.selfId;
   }
@@ -92,7 +116,21 @@ export class MeshClockSync {
   }
 
   getPeers(): PeerClockState[] {
+    this.pruneStale();
     return [...this.states.values()].sort((a, b) => a.peerId.localeCompare(b.peerId));
+  }
+
+  /**
+   * Drops peers that stopped answering.
+   *
+   * Must run on *read*, not only when a packet arrives: a peer that vanished
+   * sends nothing, so pruning inside the pong handler never fires and the node
+   * would wait for a master that is off stage.
+   */
+  private pruneStale(now = Date.now()): void {
+    for (const [peerId, state] of this.states) {
+      if (now - state.updatedAt > this.options.staleAfterMs) this.states.delete(peerId);
+    }
   }
 
   /** Shared transport for preset/intent messages once attached. */
@@ -100,8 +138,12 @@ export class MeshClockSync {
     return this.transport;
   }
 
+  get messageRouter(): MeshRouter | null {
+    return this.router;
+  }
+
   private ping(peerIds: PeerId[]): void {
-    if (!this.transport) return;
+    if (!this.router && !this.transport) return;
     for (const peerId of peerIds) {
       if (peerId === this.selfId) continue;
       const t0 = Date.now();
@@ -111,13 +153,15 @@ export class MeshClockSync {
         const oldest = [...this.pending.keys()].sort((a, b) => a - b)[0];
         if (oldest !== undefined) this.pending.delete(oldest);
       }
-      void this.transport.send({
+      const packet: MeshPacket = {
         topic: 'clock',
         from: this.selfId,
         to: peerId,
         clock: t0,
         payload: { kind: 'ping', t0 },
-      });
+      };
+      if (this.router) this.router.send(packet);
+      else void this.transport?.send(packet);
     }
   }
 
@@ -131,13 +175,15 @@ export class MeshClockSync {
     if (payload.kind === 'ping' && payload.t0 !== undefined) {
       // Answer immediately, with our own two timestamps folded in.
       const received = packet.clock;
-      void this.transport?.send({
+      const reply: MeshPacket = {
         topic: 'clock',
         from: this.selfId,
         to: packet.from,
         clock: received,
         payload: { kind: 'pong', t0: payload.t0, offset: this.states.get(packet.from)?.offsetMs ?? 0 },
-      });
+      };
+      if (this.router) this.router.send(reply);
+      else void this.transport?.send(reply);
       return;
     }
 
