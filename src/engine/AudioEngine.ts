@@ -19,6 +19,8 @@ export interface DeckState {
   bpm: number;
   stemGains: Record<StemId, number>;
   filterMode: 'lowpass' | 'highpass';
+  /** Last value written per FX parameter, so a preset can snapshot live state. */
+  fx: Record<number, number>;
 }
 
 export interface AudioEngineOptions extends Partial<EngineConfig> {
@@ -70,6 +72,7 @@ export class AudioEngine {
       bpm: this.bpm,
       stemGains: { ...DEFAULT_STEM_GAIN },
       filterMode: 'lowpass' as const,
+      fx: {},
     }));
     this.telemetry = {
       running: false,
@@ -187,7 +190,10 @@ export class AudioEngine {
   }
 
   setFx(deck: DeckId, param: FxParam, value: number): void {
-    this.handle.core.setFx(deck, param, Math.max(0, Math.min(1, value)));
+    const clamped = Math.max(0, Math.min(1, value));
+    const state = this.decks[deck];
+    if (state) state.fx[param] = clamped;
+    this.handle.core.setFx(deck, param, clamped);
   }
 
   setFilterMode(deck: DeckId, mode: 'lowpass' | 'highpass'): void {
@@ -216,6 +222,16 @@ export class AudioEngine {
 
   get currentBpm(): number {
     return this.bpm;
+  }
+
+  /** Live master gain, for preset capture. */
+  get masterGainValue(): number {
+    return this.masterGain;
+  }
+
+  /** Live crossfader position, for preset capture. */
+  get crossfaderValue(): number {
+    return this.crossfader;
   }
 
   /** Beats since start, in sample-accurate time as reported by the core. */
