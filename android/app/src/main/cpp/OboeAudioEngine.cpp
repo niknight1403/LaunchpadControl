@@ -220,6 +220,38 @@ void OboeAudioEngine::setCrossfader(float value) {
   crossfader_.store(std::clamp(value, 0.f, 1.f), std::memory_order_relaxed);
 }
 
+void OboeAudioEngine::setLoop(int32_t deck, int64_t startFrame, int64_t endFrame) {
+  AudioCommand command;
+  command.type = CommandType::kSetLoop;
+  command.deck = deck;
+  command.frameA = startFrame;
+  command.frameB = endFrame;
+  commands_.push(command);
+}
+
+void OboeAudioEngine::clearLoop(int32_t deck) {
+  AudioCommand command;
+  command.type = CommandType::kClearLoop;
+  command.deck = deck;
+  commands_.push(command);
+}
+
+void OboeAudioEngine::seek(int32_t deck, int64_t frame) {
+  AudioCommand command;
+  command.type = CommandType::kSeek;
+  command.deck = deck;
+  command.frameA = frame < 0 ? 0 : frame;
+  commands_.push(command);
+}
+
+void OboeAudioEngine::setDeckRate(int32_t deck, float rate) {
+  AudioCommand command;
+  command.type = CommandType::kDeckRate;
+  command.deck = deck;
+  command.value = rate;
+  commands_.push(command);
+}
+
 double OboeAudioEngine::latencyMs() const {
   if (!stream_) return 0.0;
   const double seconds = stream_->calculateLatencyMillis() / 1000.0;
@@ -278,7 +310,8 @@ void OboeAudioEngine::handleCommand(const AudioCommand& command) {
       target->releasing = false;
       const double base = static_cast<double>(clip->sampleRate) / static_cast<double>(sampleRate_);
       const double tempo = transportBpm_.load(std::memory_order_relaxed) / clip->bpm;
-      target->increment = base * (tempo > 0 ? tempo : 1.0);
+      target->baseIncrement = base * (tempo > 0 ? tempo : 1.0);
+      target->increment = target->baseIncrement * deck.rate;
       break;
     }
     case CommandType::kStopDeck: {
@@ -333,6 +366,36 @@ void OboeAudioEngine::handleCommand(const AudioCommand& command) {
         case FxSlot::kDrive:
           deck.drive = 1.f + value * 3.f;
           break;
+      }
+      break;
+    }
+    case CommandType::kSetLoop: {
+      if (command.frameB > command.frameA && command.frameA >= 0) {
+        deck.loopStart = command.frameA;
+        deck.loopEnd = command.frameB;
+        deck.loopEnabled = true;
+      }
+      break;
+    }
+    case CommandType::kClearLoop: {
+      deck.loopEnabled = false;
+      deck.loopStart = 0;
+      deck.loopEnd = 0;
+      break;
+    }
+    case CommandType::kDeckRate: {
+      const float rate = command.value < 0.25f ? 0.25f : (command.value > 4.f ? 4.f : command.value);
+      deck.rate = rate;
+      for (auto& voice : deck.voices) {
+        voice.increment = voice.baseIncrement * rate;
+      }
+      break;
+    }
+    case CommandType::kSeek: {
+      for (auto& voice : deck.voices) {
+        if (!voice.active || voice.clip == nullptr) continue;
+        const double target = static_cast<double>(command.frameA);
+        voice.position = target < static_cast<double>(voice.clip->frames) ? target : 0.0;
       }
       break;
     }
@@ -413,6 +476,14 @@ void OboeAudioEngine::renderDeck(Deck& deck, float* outLeft, float* outRight, in
       outLeft[i] += left * envelope;
       outRight[i] += right * envelope;
       voice.position += voice.increment;
+
+      // Loop wrap, sample accurate: subtract the loop length once, which keeps
+      // the phase exact even if the increment is fractional (beat-matched).
+      if (deck.loopEnabled && deck.loopEnd > deck.loopStart &&
+          voice.position >= static_cast<double>(deck.loopEnd)) {
+        const double length = static_cast<double>(deck.loopEnd - deck.loopStart);
+        while (voice.position >= static_cast<double>(deck.loopEnd)) voice.position -= length;
+      }
     }
   }
 

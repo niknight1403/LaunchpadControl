@@ -106,6 +106,13 @@ export interface NativeAudioCore {
   setTransport(bpm: number, phaseBeats: number): void;
   setCrossfader(value: number): void;
 
+  /** Loop between two source frames (sample accurate, applied in the callback). */
+  setLoop(deck: number, startFrame: number, endFrame: number): void;
+  clearLoop(deck: number): void;
+  /** Playback rate multiplier for beatmatching. */
+  setDeckRate(deck: number, rate: number): void;
+  seek(deck: number, frame: number): void;
+
   /** Drains the lock-free event ring. Returns one flat number[] per event. */
   pollEvents(): number[][];
 

@@ -21,6 +21,10 @@ export interface DeckState {
   filterMode: 'lowpass' | 'highpass';
   /** Last value written per FX parameter, so a preset can snapshot live state. */
   fx: Record<number, number>;
+  /** Active loop in source frames, or null. */
+  loop: { startFrame: number; endFrame: number } | null;
+  /** Playback rate multiplier. */
+  rate: number;
 }
 
 export interface AudioEngineOptions extends Partial<EngineConfig> {
@@ -73,6 +77,8 @@ export class AudioEngine {
       stemGains: { ...DEFAULT_STEM_GAIN },
       filterMode: 'lowpass' as const,
       fx: {},
+      loop: null,
+      rate: 1,
     }));
     this.telemetry = {
       running: false,
@@ -211,6 +217,39 @@ export class AudioEngine {
   setCrossfader(value: number): void {
     this.crossfader = clamp01(value);
     this.handle.core.setCrossfader(this.crossfader);
+  }
+
+  /**
+   * Loop between two source frames. Frames, not seconds or beats: the caller
+   * owns the musical maths, the core owns sample accuracy.
+   */
+  setLoop(deck: DeckId, startFrame: number, endFrame: number): void {
+    if (!(endFrame > startFrame) || startFrame < 0) {
+      this.clearLoop(deck);
+      return;
+    }
+    const state = this.decks[deck];
+    if (state) state.loop = { startFrame, endFrame };
+    this.handle.core.setLoop(deck, Math.round(startFrame), Math.round(endFrame));
+  }
+
+  clearLoop(deck: DeckId): void {
+    const state = this.decks[deck];
+    if (state) state.loop = null;
+    this.handle.core.clearLoop(deck);
+  }
+
+  /** Jumps the deck's playing voices to a source frame. */
+  seek(deck: DeckId, frame: number): void {
+    this.handle.core.seek(deck, Math.max(0, Math.round(frame)));
+  }
+
+  /** Playback rate multiplier, clamped to a musically survivable range. */
+  setDeckRate(deck: DeckId, rate: number): void {
+    const clamped = Math.max(0.5, Math.min(2, rate));
+    const state = this.decks[deck];
+    if (state) state.rate = clamped;
+    this.handle.core.setDeckRate(deck, clamped);
   }
 
   // ── transport ────────────────────────────────────────────────────────────

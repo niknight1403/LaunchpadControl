@@ -39,6 +39,9 @@ class SilentCore implements NativeAudioCore {
   private events: number[][] = [];
   private voices = 0;
   private crossfader = 0.5;
+  private loops = new Map<number, { startFrame: number; endFrame: number }>();
+  private rates = new Map<number, number>();
+  private seeks = new Map<number, number>();
 
   constructor(private config: EngineConfig) {}
 
@@ -97,6 +100,36 @@ class SilentCore implements NativeAudioCore {
 
   setCrossfader(value: number): void {
     this.crossfader = value;
+  }
+
+  setLoop(deck: number, startFrame: number, endFrame: number): void {
+    this.loops.set(deck, { startFrame, endFrame });
+  }
+
+  clearLoop(deck: number): void {
+    this.loops.delete(deck);
+  }
+
+  setDeckRate(deck: number, rate: number): void {
+    this.rates.set(deck, rate);
+  }
+
+  seek(deck: number, frame: number): void {
+    this.seeks.set(deck, frame);
+  }
+
+  /** Exposed for tests. */
+  getSeek(deck: number): number | undefined {
+    return this.seeks.get(deck);
+  }
+
+  /** Exposed for tests: what the silent bridge was told. */
+  getLoop(deck: number): { startFrame: number; endFrame: number } | undefined {
+    return this.loops.get(deck);
+  }
+
+  getRate(deck: number): number {
+    return this.rates.get(deck) ?? 1;
   }
 
   pollEvents(): number[][] {

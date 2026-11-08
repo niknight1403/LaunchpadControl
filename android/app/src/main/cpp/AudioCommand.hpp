@@ -21,8 +21,12 @@ enum class CommandType : int32_t {
   kStemGain = 6,     // deck, stem (a), value
   kFx = 7,           // deck, param (a), value
   kMasterGain = 8,   // value
-  kTransport = 9,    // value = bpm, fvalue = phase beats
+  kTransport = 9,    // value = bpm, value2 = phase beats
   kCrossfader = 10,  // value
+  kSetLoop = 11,     // deck, startFrame, endFrame (frames, not floats)
+  kClearLoop = 12,   // deck
+  kDeckRate = 13,    // deck, value = playback rate multiplier
+  kSeek = 14,        // deck, frameA = target source frame
 };
 
 enum class FxSlot : int32_t {
@@ -50,6 +54,10 @@ struct AudioCommand {
   int32_t b = 0;      // reserved
   float value = 0.f;  // normalised parameter or bpm
   float value2 = 0.f; // phase beats for transport
+  // Loop boundaries in *frames*. float would lose precision past ~16 M frames,
+  // which is only 6 minutes at 48 kHz — the length of a track.
+  int64_t frameA = 0;
+  int64_t frameB = 0;
 };
 
 struct EngineEvent {

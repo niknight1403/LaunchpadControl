@@ -128,6 +128,36 @@ class AuraCoreHostObject : public HostObject {
             return Value::undefined();
           });
     }
+    if (key == "setLoop") {
+      return Function::createFromHostFunction(
+          rt, name, 3, [](Runtime&, const Value&, const Value* args, std::size_t) -> Value {
+            const auto start = static_cast<int64_t>(num(args, 1));
+            const auto end = static_cast<int64_t>(num(args, 2));
+            engine()->setLoop(int1(args, 0), start, end);
+            return Value::undefined();
+          });
+    }
+    if (key == "clearLoop") {
+      return Function::createFromHostFunction(
+          rt, name, 1, [](Runtime&, const Value&, const Value* args, std::size_t) -> Value {
+            engine()->clearLoop(int1(args, 0));
+            return Value::undefined();
+          });
+    }
+    if (key == "seek") {
+      return Function::createFromHostFunction(
+          rt, name, 2, [](Runtime&, const Value&, const Value* args, std::size_t) -> Value {
+            engine()->seek(int1(args, 0), static_cast<int64_t>(num(args, 1)));
+            return Value::undefined();
+          });
+    }
+    if (key == "setDeckRate") {
+      return Function::createFromHostFunction(
+          rt, name, 2, [](Runtime&, const Value&, const Value* args, std::size_t) -> Value {
+            engine()->setDeckRate(int1(args, 0), static_cast<float>(num(args, 1)));
+            return Value::undefined();
+          });
+    }
     if (key == "setCrossfader") {
       return Function::createFromHostFunction(
           rt, name, 1, [](Runtime&, const Value&, const Value* args, std::size_t) -> Value {
@@ -195,7 +225,8 @@ class AuraCoreHostObject : public HostObject {
     std::vector<facebook::jsi::PropNameID> names;
     for (const char* key :
          {"start", "stop", "loadClip", "unloadClip", "triggerPad", "stopDeck", "setDeckGain",
-          "setStemGain", "setFx", "setMasterGain", "setTransport", "setCrossfader", "pollEvents",
+          "setStemGain", "setFx", "setMasterGain", "setTransport", "setCrossfader", "setLoop",
+          "clearLoop", "setDeckRate", "seek", "pollEvents",
           "latencyMs", "cpuLoad", "xruns", "activeVoices", "masterPeak", "transportBeats"}) {
       names.push_back(facebook::jsi::PropNameID::forAscii(rt, key));
     }

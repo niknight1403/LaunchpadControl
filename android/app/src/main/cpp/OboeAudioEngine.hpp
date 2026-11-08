@@ -60,6 +60,13 @@ class OboeAudioEngine : public oboe::AudioStreamDataCallback, public oboe::Audio
   void setMasterGain(float gain);
   void setTransport(double bpm, double phaseBeats);
   void setCrossfader(float value);
+  /** Loop between two source frames; ignored when endFrame <= startFrame. */
+  void setLoop(int32_t deck, int64_t startFrame, int64_t endFrame);
+  void clearLoop(int32_t deck);
+  /** Playback rate multiplier for beatmatching, 0.5..2.0. */
+  void setDeckRate(int32_t deck, float rate);
+  /** Jumps the playing voices to a source frame. */
+  void seek(int32_t deck, int64_t frame);
 
   // ── telemetry ────────────────────────────────────────────────────────────
   double latencyMs() const;
@@ -80,8 +87,9 @@ class OboeAudioEngine : public oboe::AudioStreamDataCallback, public oboe::Audio
  private:
   struct Voice {
     Clip* clip = nullptr;
-    double position = 0.0;   // in source frames
-    double increment = 1.0;  // source frames per output frame
+    double position = 0.0;      // in source frames
+    double increment = 1.0;     // source frames per output frame
+    double baseIncrement = 1.0; // increment at rate 1.0, before the deck rate
     float velocity = 1.0f;
     float fade = 0.0f;       // 0..1 declick ramp
     int32_t pad = 0;
@@ -119,6 +127,11 @@ class OboeAudioEngine : public oboe::AudioStreamDataCallback, public oboe::Audio
     float drive = 1.0f;
     float crossfadeGain = 1.f;
     float peak = 0.f;
+
+    int64_t loopStart = 0;
+    int64_t loopEnd = 0;
+    bool loopEnabled = false;
+    float rate = 1.0f;
   };
 
   void handleCommand(const AudioCommand& command);
