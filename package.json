@@ -1,6 +1,6 @@
 {
   "name": "launchpadcontrol",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "LaunchpadControl (AuraGrid) — low-latency live performance & DJ system for Android",
   "main": "index.ts",

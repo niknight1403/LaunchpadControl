@@ -11,7 +11,7 @@ screen is the second surface. Built for stage and club use, not for demos.
 | **DSP core** | C++20 · Google Oboe (AAudio / OpenSL ES) via JSI, no bridge hops on the audio path |
 | **Round-trip target** | < 8 ms buffer latency (device dependent, measured, not assumed) |
 | **Control surface** | Novation Launchpad Mini MK3 / X / Pro MK3 over USB-C host mode |
-| **State** | 1.0.0 — all ten roadmap sprints complete; native build required for audio |
+| **State** | 1.1.0 — two ten-sprint passes complete; native build required for audio |
 
 ## What is in here
 
@@ -28,7 +28,7 @@ docs/             Architecture, latency budget, build + verification
 ## Verify
 
 ```bash
-tools/ci/check.sh    # strict type check + 314 logic checks + 18 core checks
+tools/ci/check.sh    # strict type check + 689 logic checks + 18 core checks
 ```
 
 No Android SDK needed. What the checks do and do not prove is listed in

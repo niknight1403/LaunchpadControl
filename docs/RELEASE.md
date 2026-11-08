@@ -1,57 +1,58 @@
-# Release 1.0.0
+# Release notes
 
-What is in this release, what it was checked against, and what it still cannot do.
+What a release contains, what it was checked against, and what it still cannot do.
+Applies to 1.1.0; the 1.0.0 sections that are still true are marked as such.
 
 ## Verify it yourself
 
 ```bash
 npm install          # only needed for the full type check
-tools/ci/check.sh    # type check + 314 logic checks + 18 core checks
+tools/ci/check.sh    # type check + 689 logic checks + 18 core checks
 ```
 
-The check script needs `typescript`, `esbuild` and `g++`. It does not need the
-Android SDK — that is deliberate, so the logic can be verified on any machine.
+The script needs `typescript`, `esbuild` and `g++`. No Android SDK, no device.
 
-## What was verified, and how
+## 1.1.0 — what was verified, and how
 
 | Area | Evidence |
 |---|---|
-| Tempo detection | 120/128/85 BPM click tracks within ±2 BPM, silence returns nothing |
-| Key detection | A-minor triad → 8A, C-major → 8B, chroma sums to 1 |
-| FFT | tone lands in its own bin, Parseval energy conserved, non-pow2 rejected |
-| Deck maths | beat→frame conversion, loop wrap frames, half/double-time sync, nudge clamps |
-| Loops in the core | sample-accurate wrap, 64-bit frame fields |
-| FX automation | LFO values from scheduled time, clamped, no writes after stop |
-| Recording | WAV header sizes, clipping clamp, marker offsets, refused start |
-| Presets | v1→v2 migration, roundtrip through storage, autosave coalescing |
-| Mesh | preset propagation, master wins conflicts, takeover after loss, bar-aligned launch |
-| Set builder | tempo window, no duplicate tracks, transition precedence, runner order |
-| Diagnostics | scaled warn/fail verdicts, xrun-per-minute, silent-engine detection |
+| Session restore | burst of changes writes once; clean and crashed restores differ; clamps rates, gains and negative positions |
+| MIDI learn | learn captures the next message; curves and ranges; re-learning a used message replaces instead of duplicating; hostile import files are skipped with warnings |
+| Beat grid | 500 ms taps read 120 BPM; jitter lowers confidence; a bounced double tap no longer halves the next interval; offset fitted to 0.13 s from onsets and drift falls below 8 ms |
+| Band split | three stems reconstruct the input to 1e-6; muting the band containing a tone removes that tone; stereo channels independent |
+| Waveform | 60 Hz reads as bass, 1 kHz as mid, 9 kHz as highs; markers land on beats and bar lines with no duplicate buckets |
+| Export | exported WAV decodes, manifest duration matches the frames shipped, cue sheet lists markers |
+| UDP transport | framing roundtrip, six kinds of junk refused, duplicate sequences dropped, oversized packets refused before sending |
+| Latency governor | three consecutive hot samples act, alternation never does, a dropout climbs two steps at once, never beyond the ladder |
+| Backup | checksum catches a tampered count, verification never throws, double restore is idempotent |
+| Localisation | both catalogues have identical keys and identical placeholders; locale-aware number formatting |
+| Accessibility | nine text/background pairs the UI renders all pass WCAG AA |
 
 ## What is not verified here
 
-- **Audio on a device.** No emulator can tell you whether the Oboe stream is
-  glitch-free. Load a set at 128 frames and watch the diagnostics screen.
-- **MIDI against real hardware.** The driver is tested against its own protocol
-  model and the mock transport. Plug in an MK3 and confirm the pad grid lights.
+- **Audio on a device.** No emulator proves an Oboe stream is glitch-free. Load a set
+  at 128 frames and watch the diagnostics screen.
+- **MIDI against real hardware.** The driver and the map are tested against their own
+  protocol models. Plug in an MK3 and confirm the grid lights.
+- **Two phones over real Wi-Fi.** The UDP transport is tested against a fake socket.
+  The radio, the router and the club's interference are not modelled.
 - **Long-run stability.** The checks are deterministic and short; a two-hour set
-  exercises different things (memory, thermals, battery saver).
+  exercises memory, thermals and battery saver.
 
 ## Known limits
 
-1. **Stem separation needs a model file.** The inference path exists; the weights
-   do not ship. `docs/BUILD.md` explains how to supply them.
-2. **No NDK = no sound.** The silent core is a feature (UI and MIDI stay usable),
-   not a fallback that pretends to work.
-3. **Mesh transport is in-process.** `MeshBus`/`LoopbackMeshTransport` are for
-   development and soundcheck. A UDP or WebRTC transport implements the same small
-   interface; nothing above it changes.
-4. **Android build not in CI.** Gradle + NDK + Oboe needs the Android SDK image.
+1. **Stem separation needs a model file.** 1.1.0 splits bands, not instruments. The
+   inference path is documented in `docs/BUILD.md`.
+2. **No NDK = no sound.** The silent core is a feature, not a pretence.
+3. **The Android build is not in CI.** Gradle + NDK + Oboe needs the Android SDK image.
+4. **Localisation covers the string catalogue, not every existing component.** New UI
+   uses `t()`; older screens still hard-code German and are migrated as they are touched.
 
-## Release checklist (for the next one)
+## Release checklist (next time)
 
 1. `tools/ci/check.sh` green.
-2. Version bumped in `package.json` and `app.json` (plus `versionCode`).
+2. Version in `package.json` and `app.json` (plus `versionCode`).
 3. `CHANGELOG.md` has a section for the version.
-4. Device smoke test: launch, load two tracks, 4-bar loop, record 30 s, play back.
+4. Device smoke test: launch, load two tracks, 4-bar loop, record 30 s, export, restore
+   the session after a force-stop.
 5. Tag: `git tag -a vX.Y.Z -m "..."` and push with `--tags`.

@@ -3,6 +3,47 @@
 All notable changes to LaunchpadControl (AuraGrid). Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow SemVer.
 
+## [1.1.0] — 2026-11-08
+
+Everything around the gig: recovering a session, mapping a borrowed controller,
+splitting bands, exporting the take, running a swarm over Wi-Fi and keeping the
+phone honest about its own performance. Full table in `docs/ROADMAP_1.1.md`.
+
+### Added
+- **Session restore** (`src/state/SessionStore.ts`): versioned snapshot of decks,
+  positions, loops and UI state, debounced writes, a clean-shutdown marker so a
+  crash is reported as a crash, and a migration path that clamps hostile values.
+- **MIDI learn** (`src/midi/MidiMap.ts`): bind any CC or note to a deck, FX or
+  transport target, with curves and ranges, conflict reporting and JSON export.
+- **Beat grid and tap tempo** (`src/analysis/BeatGrid.ts`): tempo plus first-beat
+  offset as one object, note-division snapping, bar lines, circular-mean offset
+  refinement and a drift meter; a tap-tempo with median intervals that survives a
+  bouncy pad.
+- **Three-band stem split** (`src/analysis/StemSplit.ts`): zero-phase FFT
+  overlap-add into bass/mid/highs that reconstructs the input exactly at unity.
+- **Waveform data** (`src/analysis/WaveformData.ts`): per-bucket band energy plus
+  beat and bar markers.
+- **Take export** (`src/recording/PostProcess.ts`): normalisation with a ceiling,
+  fades, relative silence trim, and a bundle of WAV, cue sheet and manifest.
+- **UDP mesh transport** (`src/agent/UdpTransport.ts`): framed datagrams with magic,
+  version, sequence dedupe, size limit and peer learning, behind a socket interface
+  so it is testable without a port.
+- **Latency governor** (`src/engine/LatencyGovernor.ts`): adaptive buffer size with
+  hysteresis, cooldown, a ceiling and immediate reaction to dropouts.
+- **Backup bundle** (`src/state/BackupBundle.ts`): checksummed single-file backup
+  with an id-based merge that carries deletions.
+- **Localisation and contrast audit** (`src/i18n/strings.ts`,
+  `src/theme/contrast.ts`): German and English catalogues with a fallback chain, and
+  WCAG checks over the palette the UI actually renders.
+
+### Changed
+- The logic suite grew from 314 to 689 checks.
+- `docs/ROADMAP_1.1.md` documents this pass, including what was deliberately left out.
+
+### Still true from 1.0.0
+- Audio needs the NDK build; the stem model is not bundled; the Android app build is
+  not part of CI.
+
 ## [1.0.0] — 2026-11-08
 
 First complete build: architecture, realtime core, control surface, agent and the
