@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { AgentStatus } from '../agent/AuraGridAgent';
 import { AuraGridAgent } from '../agent/AuraGridAgent';
 import type { AudioEngine } from '../engine/AudioEngine';
+import { FxChain } from '../engine/fx/FxChain';
 import {
   DECK_IDS,
   FxParam,
@@ -56,6 +57,11 @@ export function AuraGridInterface({ engine, midi, agent, layout }: AuraGridInter
     3: 'lowpass',
   });
 
+  const [motion, setMotion] = useState(false);
+  // One FX chain per surface, retargeted when the active deck changes: the XY
+  // pad and the LFO automation then address the same object.
+  const fxChain = useMemo(() => new FxChain(engine, 0, { bpm: engine.currentBpm }), [engine]);
+
   const peaks = useMemo(() => syntheticPeaks(96, 11), []);
   const progress = telemetry.transportBeats % 4 / 4;
   const activeDeckRef = useRef(activeDeck);
@@ -86,6 +92,13 @@ export function AuraGridInterface({ engine, midi, agent, layout }: AuraGridInter
   useEffect(() => {
     midi.paintFrame(grid.map((row) => row.map((state) => aura.pad[state])));
   }, [grid, midi]);
+
+  useEffect(() => {
+    fxChain.setDeck(activeDeck);
+    fxChain.setBpm(engine.currentBpm);
+  }, [fxChain, activeDeck, engine.currentBpm]);
+
+  useEffect(() => () => fxChain.stop(), [fxChain]);
 
   // ── pad interaction ──────────────────────────────────────────────────────
   const handlePadPress = useCallback(
@@ -143,13 +156,26 @@ export function AuraGridInterface({ engine, midi, agent, layout }: AuraGridInter
 
   const handleFx = useCallback(
     (x: number, y: number) => {
-      const deck = activeDeckRef.current;
-      engine.setFx(deck, FxParam.FilterCutoff, 0.15 + x * 0.85);
-      engine.setFx(deck, FxParam.FilterResonance, y);
-      engine.setFx(deck, FxParam.DelayMix, Math.max(0, x - 0.7) * 1.6);
+      // The macro moves cutoff across its whole range, resonance across a
+      // musical window, and the delay send only in the last third.
+      fxChain.setMacro([{ param: FxParam.FilterCutoff, from: 0.15, to: 1 }], x);
+      fxChain.setParam(FxParam.FilterResonance, y);
+      fxChain.setParam(FxParam.DelayMix, Math.max(0, x - 0.7) * 1.6);
     },
-    [engine],
+    [fxChain],
   );
+
+  const toggleMotion = useCallback(() => {
+    const next = !motion;
+    setMotion(next);
+    if (next) {
+      fxChain.attachLfo(FxParam.FilterCutoff, { depth: 0.3, beats: 8, shape: 'sine' });
+      fxChain.start();
+    } else {
+      fxChain.detachLfo(FxParam.FilterCutoff);
+      fxChain.stop();
+    }
+  }, [fxChain, motion]);
 
   const handleFilterMode = useCallback(
     (deck: DeckId, mode: 'lowpass' | 'highpass') => {
@@ -261,6 +287,11 @@ export function AuraGridInterface({ engine, midi, agent, layout }: AuraGridInter
               label={status.coPilot ? 'CO-PILOT AN' : 'CO-PILOT AUS'}
               tone={status.coPilot ? 'green' : 'dim'}
               onPress={() => agent.setCoPilot(!status.coPilot)}
+            />
+            <ActionButton
+              label={motion ? 'MOTION AN' : 'MOTION AUS'}
+              tone={motion ? 'cyan' : 'dim'}
+              onPress={toggleMotion}
             />
             <ActionButton label="MIXER" tone="dim" onPress={() => setMixerOpen((open) => !open)} />
           </View>

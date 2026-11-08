@@ -10,6 +10,7 @@ import { run as presets } from './tests/presets.test';
 import { run as library } from './tests/library.test';
 import { run as analysis } from './tests/analysis.test';
 import { run as deck } from './tests/deck.test';
+import { run as fx } from './tests/fx.test';
 import { run as harmonic } from './tests/harmonic.test';
 import { run as midi } from './tests/midi.test';
 import { run as timeline } from './tests/timeline.test';
@@ -23,6 +24,7 @@ async function main(): Promise<void> {
   await library();
   await analysis();
   await deck();
+  await fx();
   await harmonic();
   await midi();
   await timeline();
@@ -34,7 +36,9 @@ async function main(): Promise<void> {
   console.log(
     `\n${passed} passed, ${failed} failed in ${Date.now() - startedAt} ms`,
   );
-  if (failed > 0) process.exitCode = 1;
+  // Exit explicitly: a leaked timer from a component under test must not turn a
+  // green suite into a hung CI job.
+  process.exit(failed > 0 ? 1 : 0);
 }
 
 void main();
