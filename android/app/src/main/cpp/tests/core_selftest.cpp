@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 
+#include "../FlacProbe.hpp"
 #include "../LockFreeRingBuffer.hpp"
 #include "../SvfFilter.hpp"
 #include "../WavReader.hpp"
@@ -160,6 +161,74 @@ void testWavDecoder() {
   std::remove(monoPath.c_str());
 }
 
+
+/** Writes a FLAC header with a STREAMINFO block, enough for the probe. */
+std::string writeFlacHeader(const std::string& path, int32_t sampleRate, int32_t channels, int32_t bits,
+                            int64_t totalSamples, bool lastBlock = true) {
+  std::vector<unsigned char> bytes;
+  const unsigned char magic[4] = {'f', 'L', 'a', 'C'};
+  bytes.insert(bytes.end(), magic, magic + 4);
+
+  bytes.push_back(static_cast<unsigned char>((lastBlock ? 0x80 : 0x00) | 0x00));  // STREAMINFO
+  bytes.push_back(0);
+  bytes.push_back(0);
+  bytes.push_back(34);
+
+  bytes.push_back(0x10);  // min block size 4096
+  bytes.push_back(0x00);
+  bytes.push_back(0x10);  // max block size 4096
+  bytes.push_back(0x00);
+  for (int index = 0; index < 6; ++index) bytes.push_back(0);  // min/max frame size (3 + 3)
+  // 34-byte body so far: 2 block min + 2 block max + 3 frame min + 3 frame max.
+
+  const uint64_t packed = (static_cast<uint64_t>(sampleRate) << 44) |
+                          (static_cast<uint64_t>(channels - 1) << 41) |
+                          (static_cast<uint64_t>(bits - 1) << 36) |
+                          (static_cast<uint64_t>(totalSamples) & 0xFFFFFFFFFULL);
+  for (int shift = 56; shift >= 0; shift -= 8) bytes.push_back(static_cast<unsigned char>((packed >> shift) & 0xFF));
+  for (int index = 0; index < 16; ++index) bytes.push_back(static_cast<unsigned char>(0xAB));  // md5
+
+  std::ofstream file(path, std::ios::binary);
+  file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+  return path;
+}
+
+void testFlacProbe() {
+  std::printf("\nflac probe\n");
+  const std::string path = writeFlacHeader("/tmp/auragrid_selftest_flac.flac", 44100, 2, 16, 44100 * 372);
+
+  const auragrid::FlacInfo info = auragrid::probeFlacFile(path);
+  check("a flac header is recognised", info.isFlac, info.error.c_str());
+  check("the stream info parses", info.ok, info.error.c_str());
+  check("sample rate is read", info.sampleRate == 44100);
+  check("channel count is read", info.channels == 2);
+  check("bit depth is read", info.bitsPerSample == 16);
+  check("total samples are read", info.totalSamples == 44100LL * 372);
+  check("duration is derived", info.durationMs >= 371000 && info.durationMs <= 373000);
+  check("an md5 is reported when present", info.md5.size() == 32);
+
+  const unsigned char notFlac[8] = {'R', 'I', 'F', 'F', 0, 0, 0, 0};
+  const auragrid::FlacInfo riff = auragrid::probeFlac(notFlac, sizeof(notFlac));
+  check("a wav file is not mistaken for flac", !riff.isFlac && !riff.ok);
+
+  const auragrid::FlacInfo empty = auragrid::probeFlac(notFlac, 0);
+  check("an empty buffer is refused", !empty.ok && !empty.error.empty());
+
+  const unsigned char truncated[6] = {'f', 'L', 'a', 'C', 0x80, 0x00};
+  const auragrid::FlacInfo cut = auragrid::probeFlac(truncated, sizeof(truncated));
+  check("a truncated header is refused", cut.isFlac && !cut.ok, cut.error.c_str());
+
+  const std::string hostile = writeFlacHeader("/tmp/auragrid_selftest_flac_bad.flac", 0, 2, 16, 1000);
+  const auragrid::FlacInfo bad = auragrid::probeFlacFile(hostile);
+  check("an implausible sample rate is refused", !bad.ok, bad.error.c_str());
+
+  check("a missing file reports an error", !auragrid::probeFlacFile("/tmp/no-such-file.flac").ok);
+  check("needsFlacConversion is true for flac", auragrid::needsFlacConversion(path));
+
+  std::remove(path.c_str());
+  std::remove(hostile.c_str());
+}
+
 }  // namespace
 
 int main() {
@@ -167,6 +236,7 @@ int main() {
   testRingBuffer();
   testFilter();
   testWavDecoder();
+  testFlacProbe();
   std::printf("\n%d passed, %d failed\n", gPassed, gFailed);
   return gFailed == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
