@@ -14,6 +14,7 @@ import { run as fx } from './tests/fx.test';
 import { run as recording } from './tests/recording.test';
 import { run as meshSwarm } from './tests/mesh-swarm.test';
 import { run as setbuilder } from './tests/setbuilder.test';
+import { run as diagnostics } from './tests/diagnostics.test';
 import { run as harmonic } from './tests/harmonic.test';
 import { run as midi } from './tests/midi.test';
 import { run as timeline } from './tests/timeline.test';
@@ -31,6 +32,7 @@ async function main(): Promise<void> {
   await recording();
   await meshSwarm();
   await setbuilder();
+  await diagnostics();
   await harmonic();
   await midi();
   await timeline();

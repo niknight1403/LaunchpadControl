@@ -52,9 +52,11 @@ export async function run(): Promise<void> {
   });
   monitor.sample(stats(), 2);
   monitor.sample(stats(), 2);
+  monitor.sample(stats(), 2);
   check('listener fires on the requested cadence', reports === 1, String(reports));
   monitor.sample(stats(), 2);
-  check('and again on the next cadence', reports === 2);
+  monitor.sample(stats(), 2);
+  check('and again on the next cadence', reports === 2, String(reports));
 
   const averaging = new PerfMonitor({ now: () => clock });
   averaging.sample(stats({ cpuLoad: 0.2, latencyMs: 10 }));
@@ -76,7 +78,9 @@ export async function run(): Promise<void> {
   section('Perf monitor: configurable budget');
   const strict = new PerfMonitor({ budget: { cpuLoad: 0.1 }, now: () => clock });
   clock += 30_000;
-  check('a stricter budget rejects the same sample', strict.evaluate(stats({ cpuLoad: 0.3 })).verdict === 'warn');
+  // 3x over a 10 % budget is not a warning, it is a failure — the verdict must
+  // scale with how far past the budget the sample is.
+  check('a stricter budget rejects the same sample', strict.evaluate(stats({ cpuLoad: 0.3 })).verdict === 'fail');
   const lenient = new PerfMonitor({ budget: { cpuLoad: 0.99, maxLatencyMs: 200 }, now: () => clock });
   check('a looser budget accepts it', lenient.evaluate(stats({ cpuLoad: 0.3, latencyMs: 90 })).verdict === 'ok');
   check('default budget is documented in code', DEFAULT_BUDGET.cpuLoad === 0.7 && DEFAULT_BUDGET.minBufferMs > 0);

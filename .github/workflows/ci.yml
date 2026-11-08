@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  logic:
+    name: TypeScript logic + type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Only the two tools the checks need. The full Expo/React Native install is
+      # ~600 MB of types and adds minutes for nothing, so CI uses the shims in
+      # tools/ci/rn-shims.d.ts instead.
+      - name: Install check tooling
+        run: npm install --no-save --no-audit --no-fund typescript@5.6.3 esbuild@0.24.0
+
+      - name: Type check (strict)
+        run: npx tsc -p tools/ci/tsconfig.json
+
+      - name: Logic tests
+        run: |
+          mkdir -p .tmp
+          npx esbuild scripts/selftest.ts --bundle --platform=node --format=cjs --outfile=.tmp/selftest.cjs
+          node .tmp/selftest.cjs
+
+  core:
+    name: C++ core tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile and run the core self-test
+        run: |
+          g++ -std=c++20 -O2 -Wall -Wextra -Wno-unused-parameter \
+            -Iandroid/app/src/main/cpp \
+            android/app/src/main/cpp/tests/core_selftest.cpp -o core_selftest
+          ./core_selftest
+
+  # Not covered on purpose: the Android app build (Gradle + NDK + Oboe) needs the
+  # Android SDK and a licensed NDK image. That runs locally per docs/BUILD.md.
+  # Everything else that can be verified without a device is verified here.
